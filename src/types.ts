@@ -1,83 +1,36 @@
-export interface Session {
-  id: string;
-  merchantId: string;
-  amount: string;
-  currency: string;
-  chain: string;
-  network: string;
-  status: 'awaiting_payment' | 'processing' | 'completed' | 'expired' | 'failed';
-  walletAddress: string;
-  callbackUrl: string;
-  metadata: Record<string, string>;
-  createdAt: string;
-  expiresAt: string;
-}
+// Re-export types derived from the OpenAPI 3.1 spec.
+// Raw generated file: ./generated/schema.ts (regenerate via `npm run generate`).
 
-export interface CreateSessionRequest {
-  amount: string;
-  currency: string;
-  chain: string;
-  network?: string;
-  callbackUrl?: string;
-  metadata?: Record<string, string>;
-  idempotencyKey?: string;
-}
+import type { components } from './generated/schema';
 
-export interface ListSessionsResponse {
-  sessions: Session[];
-  total: number;
-}
+type Schemas = components['schemas'];
 
-export interface Merchant {
-  id: string;
-  name: string;
-  email: string;
-  apiKey: string;
-  webhookUrl: string;
-  sandbox: boolean;
-  createdAt: string;
-}
+export type Merchant = Schemas['Merchant'];
+export type RegisterMerchantRequest = Schemas['RegisterMerchantRequest'];
+export type Wallet = Schemas['Wallet'];
+export type CreateWalletRequest = Schemas['CreateWalletRequest'];
+export type Transaction = Schemas['Transaction'];
+export type PaymentSession = Schemas['PaymentSession'];
+export type CreatePaymentSessionRequest = Schemas['CreatePaymentSessionRequest'];
+export type PaymentMethod = Schemas['PaymentMethod'];
+export type Receipt = Schemas['Receipt'];
+export type Payout = Schemas['Payout'];
+export type RequestPayoutRequest = Schemas['RequestPayoutRequest'];
+export type User = Schemas['User'];
+export type SendRequest = Schemas['SendRequest'];
+export type SendResponse = Schemas['SendResponse'];
+export type SweepResponse = Schemas['SweepResponse'];
+export type ApiError = Schemas['Error'];
 
-export interface CreateMerchantRequest {
-  name: string;
-  email: string;
-  webhookUrl?: string;
-  sandbox?: boolean;
-}
+// Thrown by PlaidlyClient when the API returns a non-2xx status.
+export class PlaidlyError extends Error {
+  readonly statusCode: number;
+  readonly code: string;
 
-export interface Payout {
-  id: string;
-  merchantId: string;
-  amount: string;
-  currency: string;
-  chain: string;
-  network: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  toAddress: string;
-  txHash?: string;
-  createdAt: string;
-}
-
-export interface CreatePayoutRequest {
-  amount: string;
-  currency: string;
-  chain: string;
-  network?: string;
-  address: string;
-}
-
-export interface Faucet {
-  chain: string;
-  network: string;
-  url: string;
-  description: string;
-}
-
-export interface SimulatePaymentRequest {
-  txHash?: string;
-}
-
-export interface PlaidlyError extends Error {
-  statusCode: number;
-  code: string;
+  constructor(message: string, statusCode: number, code: string) {
+    super(message);
+    this.name = 'PlaidlyError';
+    this.statusCode = statusCode;
+    this.code = code;
+  }
 }

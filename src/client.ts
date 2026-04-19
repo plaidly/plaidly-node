@@ -1,110 +1,194 @@
-import type {
-  Session,
-  CreateSessionRequest,
-  ListSessionsResponse,
-  Merchant,
-  CreateMerchantRequest,
-  Payout,
-  CreatePayoutRequest,
-  Faucet,
+// PlaidlyClient — thin wrapper around the generated openapi-fetch client
+// with retries, API-key auth, and typed error translation.
+//
+// Types are auto-generated from the Plaidly OpenAPI 3.1 spec. Regenerate
+// with `npm run generate`. Do not edit src/generated/schema.ts by hand.
+
+import createClient, { type Client, type Middleware } from 'openapi-fetch';
+import type { paths } from './generated/schema';
+import {
   PlaidlyError,
+  type Merchant,
+  type RegisterMerchantRequest,
+  type PaymentSession,
+  type CreatePaymentSessionRequest,
+  type Payout,
+  type RequestPayoutRequest,
+  type Wallet,
+  type CreateWalletRequest,
+  type Transaction,
 } from './types';
 
-interface PlaidlyConfig {
+export interface PlaidlyConfig {
   apiKey: string;
   baseUrl?: string;
   timeout?: number;
 }
 
+type FetchClient = Client<paths>;
+
+/**
+ * Retry middleware — re-issues the request up to 3 times on 5xx responses
+ * with exponential backoff (1s, 2s).
+ */
+function retryMiddleware(): Middleware {
+  return {
+    async onResponse({ request, response }) {
+      let attempt = 1;
+      let current = response;
+      while (current.status >= 500 && attempt < 3) {
+        await new Promise((r) => setTimeout(r, 2 ** attempt * 500));
+        current = await fetch(request.clone());
+        attempt += 1;
+      }
+      return current;
+    },
+  };
+}
+
 export class PlaidlyClient {
-  private readonly apiKey: string;
-  private readonly baseUrl: string;
-  private readonly timeout: number;
+  /** Raw openapi-fetch client — escape hatch for callers that want to use
+   *  the generated client directly for endpoints not yet exposed below. */
+  readonly raw: FetchClient;
 
   constructor(config: PlaidlyConfig) {
     if (!config.apiKey) {
       throw new Error('PlaidlyClient: apiKey is required');
     }
-    this.apiKey = config.apiKey;
-    this.baseUrl = (config.baseUrl ?? 'https://api.plaidly.io').replace(/\/$/, '');
-    this.timeout = config.timeout ?? 30_000;
+    const baseUrl = (config.baseUrl ?? 'https://api.plaidly.io').replace(/\/$/, '');
+    const timeout = config.timeout ?? 30_000;
+
+    const client: FetchClient = createClient<paths>({
+      baseUrl,
+      headers: {
+        'X-API-Key': config.apiKey,
+        Accept: 'application/json',
+      },
+      fetch: async (input: Request) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeout);
+        try {
+          return await fetch(input, { signal: controller.signal });
+        } finally {
+          clearTimeout(timer);
+        }
+      },
+    });
+    client.use(retryMiddleware());
+    this.raw = client;
   }
 
-  readonly sessions = {
-    create: (req: CreateSessionRequest): Promise<Session> =>
-      this.post('/v1/sessions', req),
-
-    get: (id: string): Promise<Session> =>
-      this.get(`/v1/sessions/${encodeURIComponent(id)}`),
-
-    list: (): Promise<ListSessionsResponse> =>
-      this.get('/v1/sessions'),
-
-    simulate: (id: string, body: Record<string, unknown> = {}): Promise<void> =>
-      this.post(`/v1/sessions/${encodeURIComponent(id)}/simulate`, body),
+  readonly merchants = {
+    register: async (req: RegisterMerchantRequest): Promise<Merchant> => {
+      const { data, error, response } = await this.raw.POST('/v1/merchants', { body: req });
+      if (error) throw this.toError(error, response);
+      return data!;
+    },
+    me: async (): Promise<Merchant> => {
+      const { data, error, response } = await this.raw.GET('/v1/me', {});
+      if (error) throw this.toError(error, response);
+      return data!;
+    },
   };
 
-  readonly merchants = {
-    register: (req: CreateMerchantRequest): Promise<Merchant> =>
-      this.post('/v1/merchants', req),
-
-    me: (): Promise<Merchant> =>
-      this.get('/v1/me'),
+  readonly paymentSessions = {
+    create: async (req: CreatePaymentSessionRequest): Promise<PaymentSession> => {
+      const { data, error, response } = await this.raw.POST('/v1/payment_sessions', {
+        body: req,
+      });
+      if (error) throw this.toError(error, response);
+      return data!;
+    },
+    createDemo: async (): Promise<PaymentSession> => {
+      const { data, error, response } = await this.raw.POST('/v1/payment_sessions/demo', {});
+      if (error) throw this.toError(error, response);
+      return data!;
+    },
+    get: async (sessionId: string): Promise<PaymentSession> => {
+      const { data, error, response } = await this.raw.GET(
+        '/v1/payment_sessions/{session_id}',
+        { params: { path: { session_id: sessionId } } },
+      );
+      if (error) throw this.toError(error, response);
+      return data!;
+    },
+    fulfillDemo: async (sessionId: string): Promise<void> => {
+      const { error, response } = await this.raw.POST(
+        '/v1/payment_sessions/{session_id}/fulfill',
+        { params: { path: { session_id: sessionId } } },
+      );
+      if (error) throw this.toError(error, response);
+    },
+    /**
+     * Fetch the PDF receipt for a completed session.
+     * Returns the raw PDF body as a Blob (endpoint returns `application/pdf`).
+     */
+    receipt: async (sessionId: string): Promise<Blob> => {
+      const { response } = await this.raw.GET(
+        '/v1/payment_sessions/{session_id}/receipt',
+        {
+          params: { path: { session_id: sessionId } },
+          parseAs: 'blob',
+        },
+      );
+      if (!response.ok) {
+        throw new PlaidlyError(
+          `HTTP ${response.status}`,
+          response.status,
+          'RECEIPT_FETCH_FAILED',
+        );
+      }
+      return response.blob();
+    },
   };
 
   readonly payouts = {
-    create: (req: CreatePayoutRequest): Promise<Payout> =>
-      this.post('/v1/payouts', req),
-
-    get: (id: string): Promise<Payout> =>
-      this.get(`/v1/payouts/${encodeURIComponent(id)}`),
-  };
-
-  readonly sandbox = {
-    faucets: (): Promise<Faucet[]> =>
-      this.get('/v1/sandbox/faucets'),
-  };
-
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeout);
-
-    let response: Response;
-    try {
-      response = await fetch(`${this.baseUrl}${path}`, {
-        method,
-        headers: {
-          'X-API-Key': this.apiKey,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
+    request: async (req: RequestPayoutRequest): Promise<Payout> => {
+      const { data, error, response } = await this.raw.POST('/v1/payouts', { body: req });
+      if (error) throw this.toError(error, response);
+      return data!;
+    },
+    get: async (payoutId: string): Promise<Payout> => {
+      const { data, error, response } = await this.raw.GET('/v1/payouts/{payout_id}', {
+        params: { path: { payout_id: payoutId } },
       });
-    } finally {
-      clearTimeout(timer);
-    }
+      if (error) throw this.toError(error, response);
+      return data!;
+    },
+  };
 
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({})) as {
-        message?: string;
-        code?: string;
-      };
-      const err = new Error(errorBody.message ?? `HTTP ${response.status}`) as PlaidlyError;
-      err.statusCode = response.status;
-      err.code = errorBody.code ?? 'UNKNOWN_ERROR';
-      throw err;
-    }
+  readonly wallets = {
+    create: async (req: CreateWalletRequest): Promise<Wallet> => {
+      const { data, error, response } = await this.raw.POST('/v1/wallets', { body: req });
+      if (error) throw this.toError(error, response);
+      return data!;
+    },
+    list: async (): Promise<Wallet[]> => {
+      const { data, error, response } = await this.raw.GET('/v1/wallets', {});
+      if (error) throw this.toError(error, response);
+      return data ?? [];
+    },
+    get: async (walletId: string): Promise<Wallet> => {
+      const { data, error, response } = await this.raw.GET('/v1/wallets/{wallet_id}', {
+        params: { path: { wallet_id: walletId } },
+      });
+      if (error) throw this.toError(error, response);
+      return data!;
+    },
+    transactions: async (walletId: string): Promise<Transaction[]> => {
+      const { data, error, response } = await this.raw.GET(
+        '/v1/wallets/{wallet_id}/transactions',
+        { params: { path: { wallet_id: walletId } } },
+      );
+      if (error) throw this.toError(error, response);
+      return data ?? [];
+    },
+  };
 
-    if (response.status === 204) return undefined as T;
-    return response.json() as Promise<T>;
-  }
-
-  private get<T>(path: string): Promise<T> {
-    return this.request<T>('GET', path);
-  }
-
-  private post<T>(path: string, body: unknown): Promise<T> {
-    return this.request<T>('POST', path, body);
+  private toError(err: unknown, response: Response): PlaidlyError {
+    const body = (err ?? {}) as { message?: unknown; code?: unknown };
+    const message = typeof body.message === 'string' ? body.message : `HTTP ${response.status}`;
+    const code = typeof body.code === 'string' ? body.code : 'UNKNOWN_ERROR';
+    return new PlaidlyError(message, response.status, code);
   }
 }
