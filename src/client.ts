@@ -65,39 +65,40 @@ export class PlaidlyClient {
       this.get('/v1/sandbox/faucets'),
   };
 
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeout);
-
-    let response: Response;
+  private async request<T>(method: string, path: string, body?: unknown, attempt = 1): Promise<T> {
     try {
-      response = await fetch(`${this.baseUrl}${path}`, {
-        method,
-        headers: {
-          'X-API-Key': this.apiKey,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timer);
-    }
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.timeout);
 
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({})) as {
-        message?: string;
-        code?: string;
-      };
-      const err = new Error(errorBody.message ?? `HTTP ${response.status}`) as PlaidlyError;
-      err.statusCode = response.status;
-      err.code = errorBody.code ?? 'UNKNOWN_ERROR';
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method,
+        headers: { 'X-API-Key': this.apiKey, 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timer));
+
+      if (response.status >= 500 && attempt < 3) {
+        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 500));
+        return this.request<T>(method, path, body, attempt + 1);
+      }
+
+      if (!response.ok) {
+        const err_body = await response.json().catch(() => ({})) as Record<string, unknown>;
+        const err = new Error(String(err_body['message'] ?? `HTTP ${response.status}`)) as PlaidlyError;
+        err.statusCode = response.status;
+        err.code = String(err_body['code'] ?? 'UNKNOWN_ERROR');
+        throw err;
+      }
+
+      if (response.status === 204) return undefined as T;
+      return response.json() as Promise<T>;
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError' && attempt < 3) {
+        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 500));
+        return this.request<T>(method, path, body, attempt + 1);
+      }
       throw err;
     }
-
-    if (response.status === 204) return undefined as T;
-    return response.json() as Promise<T>;
   }
 
   private get<T>(path: string): Promise<T> {
