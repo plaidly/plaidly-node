@@ -15,24 +15,29 @@
       "key": "api_key",
       "value": "your_api_key_here",
       "type": "string"
+    },
+    {
+      "key": "session_id",
+      "value": "ses_01HZABCDEF",
+      "type": "string"
     }
   ],
   "item": [
     {
-      "name": "Sessions",
+      "name": "Payment Sessions",
       "item": [
         {
-          "name": "Create Session",
+          "name": "Create Payment Session",
           "request": {
             "method": "POST",
             "header": [
               { "key": "X-API-Key", "value": "{{api_key}}", "type": "text" },
               { "key": "Content-Type", "value": "application/json", "type": "text" }
             ],
-            "url": { "raw": "{{base_url}}/v1/sessions", "host": ["{{base_url}}"], "path": ["v1", "sessions"] },
+            "url": { "raw": "{{base_url}}/v1/payment_sessions", "host": ["{{base_url}}"], "path": ["v1", "payment_sessions"] },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": \"100.00\",\n  \"currency\": \"USDC\",\n  \"chain\": \"solana\",\n  \"network\": \"mainnet\",\n  \"callback_url\": \"https://example.com/payment/callback\",\n  \"metadata\": {\n    \"order_id\": \"ord_123\",\n    \"customer_id\": \"cust_456\"\n  }\n}"
+              "raw": "{\n  \"amount\": 100.00,\n  \"expires_in\": \"15m\",\n  \"paymentMethod\": {\n    \"methodID\": 0,\n    \"chain\": \"solana\",\n    \"token\": \"USDC\",\n    \"network\": \"mainnet\"\n  },\n  \"metadata\": {\n    \"order_id\": \"ord_123\",\n    \"customer_id\": \"cust_456\"\n  }\n}"
             }
           },
           "response": [
@@ -41,74 +46,117 @@
               "status": "Created",
               "code": 201,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"id\": \"ses_01HZABCDEF\",\n  \"merchantId\": \"mer_01HZX\",\n  \"amount\": \"100.00\",\n  \"currency\": \"USDC\",\n  \"chain\": \"solana\",\n  \"network\": \"mainnet\",\n  \"status\": \"awaiting_payment\",\n  \"walletAddress\": \"9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\",\n  \"callbackUrl\": \"https://example.com/payment/callback\",\n  \"metadata\": { \"order_id\": \"ord_123\", \"customer_id\": \"cust_456\" },\n  \"createdAt\": \"2026-04-19T10:00:00Z\",\n  \"expiresAt\": \"2026-04-19T10:30:00Z\"\n}"
+              "body": "{\n  \"session_id\": \"ses_01HZABCDEF\",\n  \"merchant_id\": \"mer_01HZX\",\n  \"expected_amount\": 100.00,\n  \"received_amount\": 0,\n  \"address\": \"9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\",\n  \"status\": \"pending\",\n  \"currency\": \"USDC\",\n  \"payment_url\": \"https://pay.plaidly.io/ses_01HZABCDEF\",\n  \"qr_data\": \"solana:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM?amount=100\",\n  \"explorer_url\": \"https://solscan.io/account/9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\",\n  \"metadata\": { \"order_id\": \"ord_123\", \"customer_id\": \"cust_456\" },\n  \"expires_at\": \"2026-04-19T10:15:00Z\",\n  \"created_at\": \"2026-04-19T10:00:00Z\",\n  \"updated_at\": \"2026-04-19T10:00:00Z\",\n  \"demo\": false,\n  \"paymentMethod\": { \"methodID\": 0, \"chain\": \"solana\", \"token\": \"USDC\", \"network\": \"mainnet\" }\n}"
             }
           ]
         },
         {
-          "name": "Get Session",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "X-API-Key", "value": "{{api_key}}", "type": "text" }
-            ],
-            "url": {
-              "raw": "{{base_url}}/v1/sessions/:id",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "sessions", ":id"],
-              "variable": [{ "key": "id", "value": "ses_01HZABCDEF" }]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"id\": \"ses_01HZABCDEF\",\n  \"merchantId\": \"mer_01HZX\",\n  \"amount\": \"100.00\",\n  \"currency\": \"USDC\",\n  \"chain\": \"solana\",\n  \"network\": \"mainnet\",\n  \"status\": \"completed\",\n  \"walletAddress\": \"9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\",\n  \"callbackUrl\": \"https://example.com/payment/callback\",\n  \"metadata\": { \"order_id\": \"ord_123\" },\n  \"createdAt\": \"2026-04-19T10:00:00Z\",\n  \"expiresAt\": \"2026-04-19T10:30:00Z\"\n}"
-            }
-          ]
-        },
-        {
-          "name": "List Sessions",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "X-API-Key", "value": "{{api_key}}", "type": "text" }
-            ],
-            "url": { "raw": "{{base_url}}/v1/sessions", "host": ["{{base_url}}"], "path": ["v1", "sessions"] }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"sessions\": [],\n  \"total\": 0\n}"
-            }
-          ]
-        },
-        {
-          "name": "Simulate Payment (Sandbox)",
+          "name": "Create Demo Payment Session",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "X-API-Key", "value": "{{api_key}}", "type": "text" },
               { "key": "Content-Type", "value": "application/json", "type": "text" }
             ],
+            "url": { "raw": "{{base_url}}/v1/payment_sessions/demo", "host": ["{{base_url}}"], "path": ["v1", "payment_sessions", "demo"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chain\": \"ethereum\",\n  \"token\": \"USDC\",\n  \"network\": \"testnet\",\n  \"amount\": 25.00\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payment Session",
+          "request": {
+            "method": "GET",
+            "header": [],
             "url": {
-              "raw": "{{base_url}}/v1/sessions/:id/simulate",
+              "raw": "{{base_url}}/v1/payment_sessions/{{session_id}}",
               "host": ["{{base_url}}"],
-              "path": ["v1", "sessions", ":id", "simulate"],
-              "variable": [{ "key": "id", "value": "ses_01HZABCDEF" }]
-            },
-            "body": { "mode": "raw", "raw": "{}" }
+              "path": ["v1", "payment_sessions", "{{session_id}}"]
+            }
           },
           "response": [
             {
-              "name": "204 No Content",
-              "status": "No Content",
-              "code": 204
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"session_id\": \"ses_01HZABCDEF\",\n  \"merchant_id\": \"mer_01HZX\",\n  \"expected_amount\": 100.00,\n  \"received_amount\": 100.00,\n  \"address\": \"9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\",\n  \"status\": \"completed\",\n  \"currency\": \"USDC\",\n  \"metadata\": { \"order_id\": \"ord_123\" },\n  \"expires_at\": \"2026-04-19T10:15:00Z\",\n  \"completed_at\": \"2026-04-19T10:05:00Z\",\n  \"created_at\": \"2026-04-19T10:00:00Z\",\n  \"updated_at\": \"2026-04-19T10:05:00Z\",\n  \"demo\": false,\n  \"paymentMethod\": { \"methodID\": 0, \"chain\": \"solana\", \"token\": \"USDC\", \"network\": \"mainnet\" }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Simulate Payment (Demo/Sandbox)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/payment_sessions/{{session_id}}/simulate",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "payment_sessions", "{{session_id}}", "simulate"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Discovery",
+      "item": [
+        {
+          "name": "List Payment Methods",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/v1/payment_methods", "host": ["{{base_url}}"], "path": ["v1", "payment_methods"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "[\n  {\n    \"chain\": \"ethereum\",\n    \"network\": \"mainnet\",\n    \"token\": \"USDC\",\n    \"display_name\": \"USD Coin (Ethereum)\",\n    \"decimals\": 6,\n    \"kind\": \"erc20\",\n    \"min_amount\": 1.0\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Get Rates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/rates?symbols=ETH,SOL",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "rates"],
+              "query": [{ "key": "symbols", "value": "ETH,SOL" }]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "[\n  { \"symbol\": \"ETH\", \"usd\": 3000.0, \"updated_at\": \"2026-04-19T10:00:00Z\" },\n  { \"symbol\": \"SOL\", \"usd\": 150.0, \"updated_at\": \"2026-04-19T10:00:00Z\" }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Get Testnet Faucets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/v1/sandbox/faucets", "host": ["{{base_url}}"], "path": ["v1", "sandbox", "faucets"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"solana:testnet\": \"https://faucet.solana.com\",\n  \"ethereum:testnet\": \"https://holesky-faucet.pk910.de\"\n}"
             }
           ]
         }
@@ -122,13 +170,12 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "X-API-Key", "value": "{{api_key}}", "type": "text" },
               { "key": "Content-Type", "value": "application/json", "type": "text" }
             ],
             "url": { "raw": "{{base_url}}/v1/merchants", "host": ["{{base_url}}"], "path": ["v1", "merchants"] },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Acme Corp\",\n  \"email\": \"payments@acme.com\",\n  \"webhook_url\": \"https://acme.com/webhooks/plaidly\",\n  \"sandbox\": false\n}"
+              "raw": "{\n  \"name\": \"Acme Corp\",\n  \"webhook_url\": \"https://acme.com/webhooks/plaidly\"\n}"
             }
           },
           "response": [
@@ -137,7 +184,7 @@
               "status": "Created",
               "code": 201,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"id\": \"mer_01HZX\",\n  \"name\": \"Acme Corp\",\n  \"email\": \"payments@acme.com\",\n  \"apiKey\": \"pk_live_abc123\",\n  \"webhookUrl\": \"https://acme.com/webhooks/plaidly\",\n  \"sandbox\": false,\n  \"createdAt\": \"2026-04-19T10:00:00Z\"\n}"
+              "body": "{\n  \"id\": \"mer_01HZX\",\n  \"name\": \"Acme Corp\",\n  \"api_key\": \"pk_live_abc123\",\n  \"webhook_url\": \"https://acme.com/webhooks/plaidly\",\n  \"webhook_secret\": \"whsec_xxx\",\n  \"rate_limit_per_minute\": 120,\n  \"created_at\": \"2026-04-19T10:00:00Z\"\n}"
             }
           ]
         },
@@ -156,7 +203,7 @@
               "status": "OK",
               "code": 200,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"id\": \"mer_01HZX\",\n  \"name\": \"Acme Corp\",\n  \"email\": \"payments@acme.com\",\n  \"apiKey\": \"pk_live_abc123\",\n  \"webhookUrl\": \"https://acme.com/webhooks/plaidly\",\n  \"sandbox\": false,\n  \"createdAt\": \"2026-04-19T10:00:00Z\"\n}"
+              "body": "{\n  \"id\": \"mer_01HZX\",\n  \"name\": \"Acme Corp\",\n  \"api_key\": \"pk_live_abc123\",\n  \"webhook_url\": \"https://acme.com/webhooks/plaidly\",\n  \"created_at\": \"2026-04-19T10:00:00Z\"\n}"
             }
           ]
         }
@@ -176,7 +223,7 @@
             "url": { "raw": "{{base_url}}/v1/payouts", "host": ["{{base_url}}"], "path": ["v1", "payouts"] },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": \"50.00\",\n  \"currency\": \"USDC\",\n  \"chain\": \"solana\",\n  \"network\": \"mainnet\",\n  \"address\": \"9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\"\n}"
+              "raw": "{\n  \"destination_address\": \"9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\",\n  \"amount\": 50.00,\n  \"token_symbol\": \"USDC\",\n  \"network\": \"solana\"\n}"
             }
           },
           "response": [
@@ -185,7 +232,7 @@
               "status": "Created",
               "code": 201,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"id\": \"pay_01HZPAYOUT\",\n  \"merchantId\": \"mer_01HZX\",\n  \"amount\": \"50.00\",\n  \"currency\": \"USDC\",\n  \"chain\": \"solana\",\n  \"network\": \"mainnet\",\n  \"status\": \"pending\",\n  \"toAddress\": \"9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\",\n  \"createdAt\": \"2026-04-19T10:00:00Z\"\n}"
+              "body": "{\n  \"id\": \"pay_01HZPAYOUT\",\n  \"merchant_id\": \"mer_01HZX\",\n  \"destination_address\": \"9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\",\n  \"amount\": 50.00,\n  \"token_symbol\": \"USDC\",\n  \"network\": \"solana\",\n  \"status\": \"pending\",\n  \"requested_at\": \"2026-04-19T10:00:00Z\"\n}"
             }
           ]
         },
@@ -209,31 +256,7 @@
               "status": "OK",
               "code": 200,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"id\": \"pay_01HZPAYOUT\",\n  \"merchantId\": \"mer_01HZX\",\n  \"amount\": \"50.00\",\n  \"currency\": \"USDC\",\n  \"chain\": \"solana\",\n  \"network\": \"mainnet\",\n  \"status\": \"completed\",\n  \"toAddress\": \"9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\",\n  \"txHash\": \"5KVyF3...\",\n  \"createdAt\": \"2026-04-19T10:00:00Z\"\n}"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Sandbox",
-      "item": [
-        {
-          "name": "Get Testnet Faucets",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "X-API-Key", "value": "{{api_key}}", "type": "text" }
-            ],
-            "url": { "raw": "{{base_url}}/v1/sandbox/faucets", "host": ["{{base_url}}"], "path": ["v1", "sandbox", "faucets"] }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "[\n  {\n    \"chain\": \"solana\",\n    \"network\": \"devnet\",\n    \"url\": \"https://faucet.solana.com\",\n    \"description\": \"Solana Devnet faucet — request up to 2 SOL\"\n  },\n  {\n    \"chain\": \"ethereum\",\n    \"network\": \"holesky\",\n    \"url\": \"https://holesky-faucet.pk910.de\",\n    \"description\": \"Ethereum Holesky PoW faucet\"\n  }\n]"
+              "body": "{\n  \"id\": \"pay_01HZPAYOUT\",\n  \"merchant_id\": \"mer_01HZX\",\n  \"destination_address\": \"9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\",\n  \"amount\": 50.00,\n  \"token_symbol\": \"USDC\",\n  \"network\": \"solana\",\n  \"status\": \"completed\",\n  \"tx_hash\": \"5KVyF3...\",\n  \"requested_at\": \"2026-04-19T10:00:00Z\",\n  \"sent_at\": \"2026-04-19T10:02:00Z\"\n}"
             }
           ]
         }
