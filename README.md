@@ -2,9 +2,12 @@
 
 Official Node.js / TypeScript SDK for the [Plaidly](https://plaidly.io) cryptocurrency payment API.
 
-Types and the underlying HTTP client are auto-generated from the Plaidly
-OpenAPI 3.1 specification. The high-level `PlaidlyClient`, retry middleware,
-and `verifyWebhookSignature` helper are hand-written wrappers on top.
+Zero runtime dependencies — built on the platform `fetch`. Ships full
+snake_case contract types, automatic retries with timeout, and a
+constant-time webhook signature verifier.
+
+- Requires Node.js >= 18.
+- Base URL: `https://api.plaidly.io`
 
 ## Installation
 
@@ -12,74 +15,121 @@ and `verifyWebhookSignature` helper are hand-written wrappers on top.
 npm install @plaidly/node
 ```
 
-## Usage
+## Quickstart
 
 ```typescript
 import { PlaidlyClient } from '@plaidly/node';
 
 const plaidly = new PlaidlyClient({ apiKey: process.env.PLAIDLY_API_KEY! });
 
-// Create a payment session
+// 1. Create a payment session (server-to-server, requires API key)
 const session = await plaidly.paymentSessions.create({
   amount: 10.0,
   expires_in: '15m',
   paymentMethod: {
-    methodID: 0,
+    methodID: 0,            // 0 = crypto
     chain: 'solana',
     token: 'USDC',
     network: 'mainnet',
   },
+  metadata: { order_id: 'A-1001' },
 });
 
-console.log(session.address); // Send funds here
+console.log(session.address);      // deposit address — send funds here
+console.log(session.payment_url);  // hosted checkout URL for the payer
+console.log(session.qr_data);      // payment URI for QR encoding
+
+// 2. Poll for completion (public endpoint — safe from the browser)
+const latest = await plaidly.paymentSessions.get(session.session_id);
+console.log(latest.status);        // pending -> ... -> completed | confirmed
 ```
 
-## Webhook Verification
+`completed` or `confirmed` both mean success. Helpers are exported:
 
 ```typescript
-import { verifyWebhookSignature } from '@plaidly/node';
+import { isSuccessStatus, isFailureStatus } from '@plaidly/node';
 
-app.post('/webhook', (req, res) => {
-  const valid = verifyWebhookSignature(
-    req.rawBody,
-    req.headers['x-plaidly-signature'],
-    process.env.PLAIDLY_WEBHOOK_SECRET!,
-  );
-  if (!valid) return res.status(401).send('Invalid signature');
-  // handle event
+if (isSuccessStatus(latest.status)) { /* fulfill order */ }
+if (isFailureStatus(latest.status)) { /* expired or failed */ }
+```
+
+## Endpoints
+
+```typescript
+// Payment sessions
+plaidly.paymentSessions.create(req);          // POST /v1/payment_sessions     (API key)
+plaidly.paymentSessions.createDemo(opts?);    // POST /v1/payment_sessions/demo (public)
+plaidly.paymentSessions.get(sessionId);       // GET  /v1/payment_sessions/{id} (public)
+plaidly.paymentSessions.simulate(sessionId);  // POST /v1/payment_sessions/{id}/simulate (demo/sandbox)
+plaidly.paymentSessions.receipt(sessionId);   // GET  …/receipt -> Blob (PDF)
+
+// Discovery (all public)
+plaidly.paymentMethods.list();                // GET /v1/payment_methods
+plaidly.rates.get(['ETH', 'SOL']);            // GET /v1/rates?symbols=ETH,SOL
+plaidly.sandbox.faucets();                    // GET /v1/sandbox/faucets
+
+// Merchants, payouts, wallets
+plaidly.merchants.register({ name, webhook_url });
+plaidly.merchants.me();
+plaidly.payouts.request(req);
+plaidly.wallets.list();
+```
+
+### Demo & sandbox flow
+
+```typescript
+const demo = await plaidly.paymentSessions.createDemo({ chain: 'ethereum', token: 'USDC' });
+const done = await plaidly.paymentSessions.simulate(demo.session_id); // instantly completes
+console.log(done.status); // "completed"
+```
+
+## Webhook verification
+
+Plaidly signs each delivery with an `X-Plaidly-Signature` header of the form
+`t=<unix>,v1=<hex>`, where `<hex>` is `HMAC-SHA256(webhook_secret, "<t>.<rawBody>")`.
+Verification is constant-time and rejects timestamps outside a 5-minute
+tolerance by default. **You must pass the raw, unparsed request body.**
+
+```typescript
+import { verifyWebhookSignature, constructWebhookEvent } from '@plaidly/node';
+
+app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  const sig = req.headers['x-plaidly-signature'] as string;
+  const secret = process.env.PLAIDLY_WEBHOOK_SECRET!;
+
+  // Option A: boolean check
+  if (!verifyWebhookSignature(req.body, sig, secret)) {
+    return res.status(401).send('invalid signature');
+  }
+
+  // Option B: verify + parse in one step (throws on bad signature)
+  const event = constructWebhookEvent(req.body, sig, secret);
+  console.log(event.event_type, event.session_id, event.status);
+
+  res.sendStatus(200);
 });
 ```
 
-## Escape hatch — raw generated client
-
-For endpoints not yet exposed on `PlaidlyClient`, use the underlying
-[`openapi-fetch`](https://openapi-ts.dev/openapi-fetch/) client:
+Override the tolerance (seconds) if needed:
 
 ```typescript
-const { data, error } = await plaidly.raw.GET('/v1/me', {});
+verifyWebhookSignature(rawBody, sig, secret, { toleranceSeconds: 600 });
 ```
 
-## Regenerating from the spec
+## Configuration
 
-Types come from [`openapi-typescript`](https://openapi-ts.dev/). The
-committed copy of the Plaidly spec lives at `spec/openapi.yaml`.
-
-```bash
-# default: reads spec/openapi.yaml
-npm run generate
-
-# override with a remote spec
-OPENAPI_URL=https://raw.githubusercontent.com/plaidly/plaidly-api/master/api/openapi.yaml \
-  npm run generate
+```typescript
+new PlaidlyClient({
+  apiKey,              // required for authenticated endpoints
+  baseUrl,             // default https://api.plaidly.io
+  timeout,             // per-request ms, default 30_000 (AbortController)
+  maxRetries,          // retries on 502/503/504 and network errors, default 3
+  fetch,               // inject a custom fetch (testing / non-global runtimes)
+});
 ```
 
-Generated output: `src/generated/schema.ts` (do not edit by hand).
+Errors are thrown as `PlaidlyError` with `statusCode` and `code`.
 
-Pinned versions:
+## License
 
-- `openapi-typescript@7.6.1`
-- `openapi-fetch@0.13.4`
-
-## API Reference
-
-See [docs.plaidly.io](https://docs.plaidly.io) for full API documentation.
+MIT
