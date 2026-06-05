@@ -15,9 +15,9 @@
     }
   },
   "scripts": {
-    "generate": "node scripts/generate.mjs",
-    "build": "tsc",
-    "test": "node --test dist/__tests__",
+    "build": "tsc -p tsconfig.build.json",
+    "pretest": "tsc",
+    "test": "node scripts/run-tests.mjs",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -31,12 +31,8 @@
     "type": "git",
     "url": "https://github.com/plaidly/plaidly-node"
   },
-  "dependencies": {
-    "openapi-fetch": "0.13.4"
-  },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "openapi-typescript": "7.6.1",
     "typescript": "^5.4.0"
   },
   "engines": {
